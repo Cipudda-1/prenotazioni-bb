@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Villa Serena - Prenotazioni & ESP32 Smart Access</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Custom Styling -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              900: '#134e4a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom CSS Keypad Animations */
+    .keypad-btn:active {
+      transform: scale(0.95);
+    }
+    .pulse-green {
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+    }
+    .pulse-red {
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased bg-slate-900 text-slate-100 flex flex-col min-h-screen">
+
+  <!-- Header / Navigation -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-gradient-to-tr from-brand-600 to-emerald-400 p-2.5 rounded-xl shadow-lg shadow-brand-500/20">
+          <i class="fa-solid fa-key text-slate-950 text-xl"></i>
+        </div>
+        <div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-brand-500 bg-clip-text text-transparent">Villa Serena</span>
+          <span class="hidden sm:inline-block text-xs text-brand-500 font-medium px-2 py-0.5 bg-brand-500/10 rounded-full border border-brand-500/20 ml-2">Smart Access B&B</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+        <button id="tab-guest-btn" onclick="switchTab('guest')" class="flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-brand-600 text-white shadow-md">
+          <i class="fa-solid fa-calendar-check text-xs"></i>
+          <span>Prenotazioni</span>
+        </button>
+        <button id="tab-admin-btn" onclick="switchTab('admin')" class="flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200">
+          <i class="fa-solid fa-microchip text-xs"></i>
+          <span>Simulatore ESP32 & Admin</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ==================== TAB 1: GUEST BOOKING VIEW ==================== -->
+    <section id="view-guest" class="space-y-8">
+      
+      <!-- Hero Banner -->
+      <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 p-6 sm:p-10">
+        <div class="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="max-w-2xl relative z-10 space-y-3">
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-medium text-brand-400">
+            <i class="fa-solid fa-bolt text-amber-400"></i>
+            <span>Check-in Automatico h24</span>
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            Prenota il tuo soggiorno in totale libertà.
+          </h1>
+          <p class="text-slate-400 text-base leading-relaxed">
+            Senza chiavi fisiche o attese. Inserisci il tuo numero di telefono e le date del soggiorno per generare istantaneamente il tuo <strong class="text-slate-200">PIN personale a 4 cifre</strong> valido per la serratura elettronica.
+          </p>
+        </div>
+      </div>
+
+      <!-- Main Booking Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+        <!-- Booking Form (7 cols) -->
+        <div class="lg:col-span-7 bg-slate-950/60 rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6 shadow-xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-calendar-days text-brand-500"></i>
+              Nuova Prenotazione
+            </h2>
+            <span class="text-xs text-slate-500">PIN generato in tempo reale</span>
+          </div>
+
+          <form id="booking-form" onsubmit="handleBookingSubmit(event)" class="space-y-5">
+            <!-- Phone Number -->
+            <div>
+              <label for="phone-input" class="block text-sm font-medium text-slate-300 mb-1">
+                Numero di Telefono (Cellulare)
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <i class="fa-solid fa-phone text-sm"></i>
+                </div>
+                <input type="tel" id="phone-input" required placeholder="+39 340 1234567"
+                  class="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm transition-all">
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Usato come identificativo e per recuperare il tuo PIN in seguito.</p>
+            </div>
+
+            <!-- Date Inputs -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="start-date" class="block text-sm font-medium text-slate-300 mb-1">Data Inizio (Check-in)</label>
+                <div class="relative">
+                  <input type="datetime-local" id="start-date" required
+                    class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
+              </div>
+              <div>
+                <label for="end-date" class="block text-sm font-medium text-slate-300 mb-1">Data Fine (Check-out)</label>
+                <div class="relative">
+                  <input type="datetime-local" id="end-date" required
+                    class="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+                </div>
+              </div>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="booking-error" class="hidden p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-circle-exclamation text-base flex-shrink-0"></i>
+              <span id="booking-error-msg">Errore nelle date inserite.</span>
+            </div>
+
+            <button type="submit" 
+              class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 text-white font-semibold shadow-lg shadow-brand-600/25 transition-all flex items-center justify-center space-x-2 text-sm">
+              <i class="fa-solid fa-key"></i>
+              <span>Conferma e Genera PIN Accesso</span>
+            </button>
+          </form>
+
+          <!-- Divider -->
+          <div class="relative my-6">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
+            <div class="relative flex justify-center text-xs uppercase"><span class="bg-slate-950 px-3 text-slate-500 font-medium">Oppure</span></div>
+          </div>
+
+          <!-- Lookup Section -->
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+            <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass text-brand-500"></i>
+              Hai già una prenotazione? Recupera PIN
+            </h3>
+            <div class="flex gap-2">
+              <input type="tel" id="lookup-phone" placeholder="Inserisci il tuo cellulare" 
+                class="flex-grow px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <button onclick="lookupBooking()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors border border-slate-700">
+                Cerca
+              </button>
+            </div>
+            <p id="lookup-result" class="text-xs text-slate-400 hidden"></p>
+          </div>
+        </div>
+
+        <!-- Right Side: Active Pass Display / Receipt (5 cols) -->
+        <div class="lg:col-span-5 flex flex-col">
+          <div class="bg-slate-950/60 rounded-2xl border border-slate-800 p-6 sm:p-8 flex-grow flex flex-col justify-between shadow-xl relative overflow-hidden">
+            <!-- Background Accent -->
+            <div class="absolute -bottom-10 -right-10 w-48 h-48 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="space-y-6">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Pass Soggiorno Smart</span>
+                <span id="pass-status-badge" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                  Nessuna Selezione
+                </span>
+              </div>
+
+              <!-- Pass Main Area -->
+              <div id="pass-empty-state" class="text-center py-12 space-y-3">
+                <div class="w-16 h-16 bg-slate-900 rounded-2xl border border-slate-800 flex items-center justify-center mx-auto text-slate-600">
+                  <i class="fa-solid fa-lock text-2xl"></i>
+                </div>
+                <p class="text-slate-400 text-sm">Completa il modulo a sinistra o cerca una prenotazione esistente per visualizzare il PIN di accesso.</p>
+              </div>
+
+              <!-- Pass Active Card (Hidden by default) -->
+              <div id="pass-active-card" class="hidden space-y-6">
+                <!-- PIN Big Display -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-2 relative group">
+                  <span class="text-xs text-slate-400 uppercase tracking-widest font-semibold">Il tuo PIN per il Tastierino</span>
+                  <div class="flex items-center justify-center space-x-3">
+                    <span id="pass-pin-code" class="text-5xl font-mono font-bold tracking-widest text-brand-400">0000</span>
+                    <button onclick="copyPin()" title="Copia PIN" class="p-2 text-slate-400 hover:text-white transition-colors">
+                      <i id="copy-icon" class="fa-regular fa-copy text-lg"></i>
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-500">Digita questo codice sul tastierino all'ingresso seguito dal tasto <strong class="text-slate-300">#</strong></p>
+                </div>
+
+                <!-- Info Grid -->
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                  <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <span class="text-slate-500 block mb-1">Check-in</span>
+                    <span id="pass-start-time" class="text-slate-200 font-medium">--/--/---- --:--</span>
+                  </div>
+                  <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <span class="text-slate-500 block mb-1">Check-out</span>
+                    <span id="pass-end-time" class="text-slate-200 font-medium">--/--/---- --:--</span>
+                  </div>
+                </div>
+
+                <!-- Live Countdown -->
+                <div class="p-4 rounded-xl bg-brand-950/30 border border-brand-500/20 text-center space-y-1">
+                  <span class="text-xs text-brand-400 font-medium">Tempo Rimanente di Accesso:</span>
+                  <div id="pass-countdown" class="text-xl font-mono font-bold text-emerald-300">--d --h --m --s</div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="text-xs text-slate-400 space-y-2 bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/60">
+                  <div class="flex items-start gap-2">
+                    <i class="fa-solid fa-shield-halved text-brand-500 mt-0.5"></i>
+                    <span>Il PIN è valido <strong>soltanto</strong> nell'intervallo temporale della tua prenotazione. Verrà automaticamente disattivato al check-out.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-wifi text-slate-600"></i>
+              Sincronizzato in tempo reale con Microcontrollore ESP32
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ==================== TAB 2: ADMIN & ESP32 SIMULATOR ==================== -->
+    <section id="view-admin" class="hidden space-y-8">
+      
+      <!-- Top Bar Simulator Status -->
+      <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
+        <div class="flex items-center space-x-4">
+          <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 text-brand-400">
+            <i class="fa-solid fa-microchip text-2xl"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              Pannello di Controllo ESP32 Hardware
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> Online
+              </span>
+            </h2>
+            <p class="text-xs text-slate-400">Simulazione interattiva della serratura domotica e monitoraggio API JSON.</p>
+          </div>
+        </div>
+
+        <!-- Simulated Clock Modifier -->
+        <div class="flex items-center space-x-3 bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-xs">
+          <i class="fa-regular fa-clock text-amber-400"></i>
+          <span class="text-slate-400">Ora di Sistema Simulatore:</span>
+          <span id="sim-clock" class="font-mono font-bold text-white text-sm">--:--:--</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left: Virtual Keypad & Hardware Simulation (5 cols) -->
+        <div class="lg:col-span-5 space-y-6">
+          <div class="bg-slate-950/80 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-border-all text-brand-500"></i>
+                Tastierino Numerico (Keypad)
+              </h3>
+              <span class="text-xs text-slate-500 font-mono">TTP229 / Matrix Keypad</span>
+            </div>
+
+            <!-- Lock Visual Indicator -->
+            <div id="lock-indicator" class="p-4 rounded-xl bg-slate-900 border-2 border-slate-800 flex items-center justify-between transition-all">
+              <div class="flex items-center space-x-3">
+                <div id="lock-icon-bg" class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 text-xl transition-all">
+                  <i id="lock-icon" class="fa-solid fa-lock"></i>
+                </div>
+                <div>
+                  <div id="lock-title" class="text-sm font-bold text-slate-300">PORTA BLOCCATA</div>
+                  <div id="lock-subtitle" class="text-xs text-slate-500">Relè serratura: disattivo (0V)</div>
+                </div>
+              </div>
+              <div id="lock-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                LOCKED
+              </div>
+            </div>
+
+            <!-- Digital Screen LCD -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 font-mono text-center space-y-1">
+              <div class="text-[10px] text-slate-500 uppercase tracking-widest">Display LCD 16x2 Simulato</div>
+              <div id="keypad-lcd-display" class="text-2xl font-bold tracking-widest text-emerald-400 min-h-[32px] flex items-center justify-center">
+                INSERISCI PIN
+              </div>
+              <div id="keypad-status-msg" class="text-xs text-slate-400">Premere # per confermare</div>
+            </div>
+
+            <!-- Keypad Buttons -->
+            <div class="grid grid-cols-3 gap-3 max-w-xs mx-auto">
+              <button onclick="pressKey('1')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">1</button>
+              <button onclick="pressKey('2')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">2</button>
+              <button onclick="pressKey('3')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">3</button>
+              <button onclick="pressKey('4')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">4</button>
+              <button onclick="pressKey('5')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">5</button>
+              <button onclick="pressKey('6')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">6</button>
+              <button onclick="pressKey('7')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">7</button>
+              <button onclick="pressKey('8')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">8</button>
+              <button onclick="pressKey('9')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">9</button>
+              <button onclick="pressKey('C')" class="keypad-btn py-3 bg-red-950/40 hover:bg-red-900/50 border border-red-800/50 rounded-xl text-base font-bold text-red-400 shadow transition-all">C</button>
+              <button onclick="pressKey('0')" class="keypad-btn py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700/70 rounded-xl text-lg font-bold text-slate-100 shadow transition-all">0</button>
+              <button onclick="pressKey('#')" class="keypad-btn py-3 bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-800/50 rounded-xl text-lg font-bold text-emerald-400 shadow transition-all">#</button>
+            </div>
+          </div>
+
+          <!-- ESP32 Real-Time JSON Endpoint Monitor -->
+          <div class="bg-slate-950/80 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-code text-cyan-400"></i>
+                Endpoint API Simulato per ESP32
+              </h3>
+              <span class="text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded">GET /api/active-pins</span>
+            </div>
+            <p class="text-xs text-slate-400">
+              Ecco cosa scarica l'ESP32 tramite richiesta HTTP GET. Contiene solo i PIN attualmente validi in base alla data/ora odierna.
+            </p>
+            <div class="bg-slate-900 p-3.5 rounded-xl border border-slate-800 font-mono text-xs text-emerald-400 overflow-x-auto">
+              <pre id="api-json-preview">{ "timestamp": "...", "active_pins": [] }</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Admin Reservations Table & Controls (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+          <div class="bg-slate-950/80 rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                  <i class="fa-solid fa-list-check text-brand-500"></i>
+                  Database Prenotazioni & PIN
+                </h3>
+                <p class="text-xs text-slate-400">Gestisci i pass di accesso, revoca o aggiungi prenotazioni di prova.</p>
+              </div>
+              
+              <button onclick="resetSampleData()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 transition-colors flex items-center gap-1.5 self-start sm:self-auto">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span>Ripristina Dati Esempio</span>
+              </button>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                    <th class="py-3 px-3">Telefono</th>
+                    <th class="py-3 px-3">Periodo</th>
+                    <th class="py-3 px-3 text-center">PIN</th>
+                    <th class="py-3 px-3 text-center">Stato</th>
+                    <th class="py-3 px-3 text-right">Azione</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Explanation Box -->
+            <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800/80 space-y-2 text-xs text-slate-400">
+              <div class="font-semibold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-info text-brand-400"></i>
+                Come funziona con l'hardware reale?
+              </div>
+              <p>
+                L'ESP32 esegue periodicamente una richiesta HTTP al tuo server Python/Node/PHP sull'endpoint <code class="text-brand-300 font-mono">/api/active-pins</code>. Il server confronta le date attuali con il database e restituisce un JSON contenente esclusivamente l'array dei PIN validi. Quando un utente digita un codice sul tastierino, l'ESP32 lo verifica in memoria o invia una query immediata.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    // Global In-Memory Database for Bookings
+    let bookings = [];
+
+    // Current State Keypad
+    let currentKeypadInput = "";
+    let keypadTimeout = null;
+
+    // Helper: Initial Load with Sample Data
+    function initDatabase() {
+      const now = new Date();
+      
+      // Sample 1: Active Booking (Started yesterday, ends in 3 days)
+      const start1 = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+      const end1 = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000));
+
+      // Sample 2: Upcoming Booking (Starts in 2 days)
+      const start2 = new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000));
+      const end2 = new Date(now.getTime() + (5 * 24 * 60 * 60 * 1000));
+
+      // Sample 3: Expired Booking (Ended yesterday)
+      const start3 = new Date(now.getTime() - (5 * 24 * 60 * 60 * 1000));
+      const end3 = new Date(now.getTime() - (1 * 24 * 60 * 60 * 1000));
+
+      bookings = [
+        {
+          id: 'bk-101',
+          phone: '+39 340 1234567',
+          startDate: start1.toISOString(),
+          endDate: end1.toISOString(),
+          pin: '4829',
+          status: 'active'
+        },
+        {
+          id: 'bk-102',
+          phone: '+39 388 9876543',
+          startDate: start2.toISOString(),
+          endDate: end2.toISOString(),
+          pin: '9152',
+          status: 'upcoming'
+        },
+        {
+          id: 'bk-103',
+          phone: '+39 333 5554433',
+          startDate: start3.toISOString(),
+          endDate: end3.toISOString(),
+          pin: '1234',
+          status: 'expired'
+        }
+      ];
+
+      // Set default input dates for booking form
+      const startInput = document.getElementById('start-date');
+      const endInput = document.getElementById('end-date');
+      if (startInput && endInput) {
+        const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+        const inThreeDays = new Date(now.getTime() + (4 * 24 * 60 * 60 * 1000));
+        startInput.value = formatDateForInput(now);
+        endInput.value = formatDateForInput(inThreeDays);
+      }
+
+      updateAllViews();
+    }
+
+    // Helper: Format Date for <input type="datetime-local">
+    function formatDateForInput(date) {
+      const pad = (n) => n < 10 ? '0' + n : n;
+      return date.getFullYear() + '-' +
+        pad(date.getMonth() + 1) + '-' +
+        pad(date.getDate()) + 'T' +
+        pad(date.getHours()) + ':' +
+        pad(date.getMinutes());
+    }
+
+    // Helper: Format Readable Date String
+    function formatReadableDate(isoStr) {
+      const d = new Date(isoStr);
+      return d.toLocaleString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Generate Unique 4-Digit PIN based on Phone & Date
+    function generateUniquePin(phone) {
+      let pin;
+      let isDuplicate = true;
+      let attempts = 0;
+
+      while (isDuplicate && attempts < 100) {
+        // Simple hash-like 4 digit random
+        pin = Math.floor(1000 + Math.random() * 9000).toString();
+        // Check if any existing booking has this PIN
+        isDuplicate = bookings.some(b => b.pin === pin && getComputedStatus(b) !== 'expired');
+        attempts++;
+      }
+      return pin;
+    }
+
+    // Compute Status based on Current Time
+    function getComputedStatus(booking) {
+      if (booking.revoked) return 'revoked';
+      const now = new Date();
+      const start = new Date(booking.startDate);
+      const end = new Date(booking.endDate);
+
+      if (now < start) return 'upcoming';
+      if (now >= start && now <= end) return 'active';
+      return 'expired';
+    }
+
+    // Get Active PINs Array for ESP32
+    function getActivePinsArray() {
+      const now = new Date();
+      return bookings
+        .filter(b => getComputedStatus(b) === 'active')
+        .map(b => b.pin);
+    }
+
+    // Navigation Switcher
+    function switchTab(tab) {
+      const guestView = document.getElementById('view-guest');
+      const adminView = document.getElementById('view-admin');
+      const guestBtn = document.getElementById('tab-guest-btn');
+      const adminBtn = document.getElementById('tab-admin-btn');
+
+      if (tab === 'guest') {
+        guestView.classList.remove('hidden');
+        adminView.classList.add('hidden');
+        guestBtn.className = "flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-brand-600 text-white shadow-md";
+        adminBtn.className = "flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200";
+      } else {
+        guestView.classList.add('hidden');
+        adminView.classList.remove('hidden');
+        adminBtn.className = "flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-brand-600 text-white shadow-md";
+        guestBtn.className = "flex items-center space-x-2 px-3 sm:px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-slate-200";
+      }
+    }
+
+    // Submit Booking Handler
+    function handleBookingSubmit(e) {
+      e.preventDefault();
+      const phone = document.getElementById('phone-input').value.trim();
+      const startDateVal = document.getElementById('start-date').value;
+      const endDateVal = document.getElementById('end-date').value;
+      const errorBanner = document.getElementById('booking-error');
+      const errorMsg = document.getElementById('booking-error-msg');
+
+      errorBanner.classList.add('hidden');
+
+      if (!phone || !startDateVal || !endDateVal) {
+        errorMsg.innerText = "Compila tutti i campi richiesti.";
+        errorBanner.classList.remove('hidden');
+        return;
+      }
+
+      const start = new Date(startDateVal);
+      const end = new Date(endDateVal);
+      const now = new Date();
+
+      if (end <= start) {
+        errorMsg.innerText = "La data di check-out deve essere successiva al check-in.";
+        errorBanner.classList.remove('hidden');
+        return;
+      }
+
+      // Create Booking
+      const pin = generateUniquePin(phone);
+      const newBooking = {
+        id: 'bk-' + Date.now().toString().slice(-4),
+        phone: phone,
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        pin: pin,
+        status: 'active'
+      };
+
+      bookings.unshift(newBooking);
+      updateAllViews();
+
+      // Display active pass for this new booking
+      renderPassCard(newBooking);
+
+      showToast("Prenotazione creata con successo! PIN: " + pin, "success");
+    }
+
+    // Lookup Booking by Phone
+    function lookupBooking() {
+      const phone = document.getElementById('lookup-phone').value.trim();
+      const resultMsg = document.getElementById('lookup-result');
+      
+      if (!phone) return;
+
+      const userBookings = bookings.filter(b => b.phone.includes(phone) || phone.includes(b.phone));
+
+      if (userBookings.length === 0) {
+        resultMsg.innerText = "Nessuna prenotazione trovata con questo numero.";
+        resultMsg.className = "text-xs text-red-400 mt-2 block";
+        return;
+      }
+
+      // Sort by most relevant (active first, then upcoming)
+      userBookings.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+      const target = userBookings[0];
+
+      renderPassCard(target);
+      resultMsg.innerText = `Trovata prenotazione (${getComputedStatus(target).toUpperCase()}). Pass aggiornato.`;
+      resultMsg.className = "text-xs text-emerald-400 mt-2 block";
+    }
+
+    // Render Active Pass Display
+    let passCountdownInterval = null;
+
+    function renderPassCard(booking) {
+      const emptyState = document.getElementById('pass-empty-state');
+      const activeCard = document.getElementById('pass-active-card');
+      const statusBadge = document.getElementById('pass-status-badge');
+      const pinDisplay = document.getElementById('pass-pin-code');
+      const startTimeDisp = document.getElementById('pass-start-time');
+      const endTimeDisp = document.getElementById('pass-end-time');
+      const countdownDisp = document.getElementById('pass-countdown');
+
+      emptyState.classList.add('hidden');
+      activeCard.classList.remove('hidden');
+
+      const status = getComputedStatus(booking);
+      pinDisplay.innerText = booking.pin;
+      startTimeDisp.innerText = formatReadableDate(booking.startDate);
+      endTimeDisp.innerText = formatReadableDate(booking.endDate);
+
+      // Badge status formatting
+      if (status === 'active') {
+        statusBadge.innerText = 'ATTIVO ORA';
+        statusBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+      } else if (status === 'upcoming') {
+        statusBadge.innerText = 'FUTURO';
+        statusBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30';
+      } else if (status === 'expired') {
+        statusBadge.innerText = 'SCADUTO';
+        statusBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/30';
+      } else {
+        statusBadge.innerText = 'REVOCATO';
+        statusBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700';
+      }
+
+      // Setup live countdown
+      if (passCountdownInterval) clearInterval(passCountdownInterval);
+
+      const updateCountdown = () => {
+        const now = new Date().getTime();
+        const start = new Date(booking.startDate).getTime();
+        const end = new Date(booking.endDate).getTime();
+
+        if (now < start) {
+          const diff = start - now;
+          countdownDisp.innerText = "Inizia tra " + formatTimeDiff(diff);
+        } else if (now >= start && now <= end) {
+          const diff = end - now;
+          countdownDisp.innerText = formatTimeDiff(diff);
+        } else {
+          countdownDisp.innerText = "Soggiorno Terminato (PIN Scaduto)";
+        }
+      };
+
+      updateCountdown();
+      passCountdownInterval = setInterval(updateCountdown, 1000);
+    }
+
+    function formatTimeDiff(ms) {
+      const seconds = Math.floor((ms / 1000) % 60);
+      const minutes = Math.floor((ms / (1000 * 60)) % 60);
+      const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+      const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+
+      return `${days}g ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // Copy PIN to clipboard
+    function copyPin() {
+      const pinText = document.getElementById('pass-pin-code').innerText;
+      if (!pinText || pinText === '0000') return;
+
+      const tempInput = document.createElement('input');
+      tempInput.value = pinText;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+
+      const icon = document.getElementById('copy-icon');
+      icon.className = "fa-solid fa-check text-emerald-400 text-lg";
+      setTimeout(() => {
+        icon.className = "fa-regular fa-copy text-lg";
+      }, 2000);
+
+      showToast("PIN copiato negli appunti!", "info");
+    }
+
+    // Update Admin Table & JSON Preview
+    function updateAllViews() {
+      renderAdminTable();
+      renderJsonPreview();
+    }
+
+    function renderAdminTable() {
+      const tbody = document.getElementById('admin-table-body');
+      tbody.innerHTML = '';
+
+      bookings.forEach(b => {
+        const computedStatus = getComputedStatus(b);
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-900/40 transition-colors";
+
+        let statusBadgeClass = "";
+        let statusText = computedStatus.toUpperCase();
+
+        if (computedStatus === 'active') {
+          statusBadgeClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        } else if (computedStatus === 'upcoming') {
+          statusBadgeClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+        } else if (computedStatus === 'expired') {
+          statusBadgeClass = "bg-red-500/10 text-red-400 border-red-500/20";
+        } else {
+          statusBadgeClass = "bg-slate-800 text-slate-400 border-slate-700";
+          statusText = "REVOCATO";
+        }
+
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-medium text-slate-200">${b.phone}</td>
+          <td class="py-3 px-3 text-slate-400 text-[11px]">
+            <div><i class="fa-regular fa-calendar-check text-brand-500 mr-1"></i> ${formatReadableDate(b.startDate)}</div>
+            <div><i class="fa-regular fa-calendar-xmark text-slate-500 mr-1"></i> ${formatReadableDate(b.endDate)}</div>
+          </td>
+          <td class="py-3 px-3 text-center font-mono font-bold text-brand-400 text-sm">${b.pin}</td>
+          <td class="py-3 px-3 text-center">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadgeClass}">${statusText}</span>
+          </td>
+          <td class="py-3 px-3 text-right">
+            ${computedStatus !== 'revoked' && computedStatus !== 'expired' ? `
+              <button onclick="revokeBooking('${b.id}')" class="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[11px] font-medium transition-colors">
+                Revoca
+              </button>
+            ` : `<span class="text-slate-600">--</span>`}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderJsonPreview() {
+      const activePins = getActivePinsArray();
+      const payload = {
+        status: "success",
+        timestamp: new Date().toISOString(),
+        total_active: activePins.length,
+        active_pins: activePins
+      };
+
+      document.getElementById('api-json-preview').innerText = JSON.stringify(payload, null, 2);
+    }
+
+    function revokeBooking(id) {
+      const b = bookings.find(x => x.id === id);
+      if (b) {
+        b.revoked = true;
+        updateAllViews();
+        showToast(`Prenotazione per ${b.phone} revocata.`, "warning");
+      }
+    }
+
+    function resetSampleData() {
+      initDatabase();
+      showToast("Database ripristinato ai dati di esempio.", "info");
+    }
+
+    // ==================== KEYPAD SIMULATION LOGIC ====================
+    function pressKey(key) {
+      const lcdDisplay = document.getElementById('keypad-lcd-display');
+      const statusMsg = document.getElementById('keypad-status-msg');
+
+      if (key === 'C') {
+        currentKeypadInput = "";
+        lcdDisplay.innerText = "INSERISCI PIN";
+        statusMsg.innerText = "Premere # per confermare";
+        return;
+      }
+
+      if (key === '#') {
+        verifyPinOnESP32(currentKeypadInput);
+        return;
+      }
+
+      // Limit to 4 digits
+      if (currentKeypadInput.length < 4) {
+        currentKeypadInput += key;
+        lcdDisplay.innerText = "*".repeat(currentKeypadInput.length);
+      }
+    }
+
+    function verifyPinOnESP32(pin) {
+      const lcdDisplay = document.getElementById('keypad-lcd-display');
+      const statusMsg = document.getElementById('keypad-status-msg');
+      const lockIndicator = document.getElementById('lock-indicator');
+      const lockIconBg = document.getElementById('lock-icon-bg');
+      const lockIcon = document.getElementById('lock-icon');
+      const lockTitle = document.getElementById('lock-title');
+      const lockSubtitle = document.getElementById('lock-subtitle');
+      const lockBadge = document.getElementById('lock-badge');
+
+      if (!pin || pin.length < 4) {
+        lcdDisplay.innerText = "ERRORE CORTI";
+        statusMsg.innerText = "Inserire almeno 4 cifre";
+        setTimeout(() => {
+          currentKeypadInput = "";
+          lcdDisplay.innerText = "INSERISCI PIN";
+        }, 1500);
+        return;
+      }
+
+      const activePins = getActivePinsArray();
+
+      if (activePins.includes(pin)) {
+        // SUCCESS ACCESS GRANTED
+        lcdDisplay.innerText = "ACCESSO OK!";
+        lcdDisplay.className = "text-2xl font-bold tracking-widest text-emerald-400 min-h-[32px] flex items-center justify-center";
+        statusMsg.innerText = "Serratura aperta per 5 sec";
+
+        // Unlock visual animation
+        lockIndicator.className = "p-4 rounded-xl bg-emerald-950/40 border-2 border-emerald-500/60 flex items-center justify-between transition-all pulse-green";
+        lockIconBg.className = "w-12 h-12 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center text-xl transition-all";
+        lockIcon.className = "fa-solid fa-lock-open";
+        lockTitle.innerText = "PORTA SBLOCCATA";
+        lockTitle.className = "text-sm font-bold text-emerald-300";
+        lockSubtitle.innerText = "Relè serratura: ATTIVO (12V)";
+        lockBadge.innerText = "UNLOCKED";
+        lockBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+
+        showToast("ESP32: PIN Corretto! Accesso Consentito.", "success");
+
+        // Relock after 5 seconds
+        if (keypadTimeout) clearTimeout(keypadTimeout);
+        keypadTimeout = setTimeout(() => {
+          currentKeypadInput = "";
+          lcdDisplay.innerText = "INSERISCI PIN";
+          statusMsg.innerText = "Premere # per confermare";
+
+          lockIndicator.className = "p-4 rounded-xl bg-slate-900 border-2 border-slate-800 flex items-center justify-between transition-all";
+          lockIconBg.className = "w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 text-xl transition-all";
+          lockIcon.className = "fa-solid fa-lock";
+          lockTitle.innerText = "PORTA BLOCCATA";
+          lockTitle.className = "text-sm font-bold text-slate-300";
+          lockSubtitle.innerText = "Relè serratura: disattivo (0V)";
+          lockBadge.innerText = "LOCKED";
+          lockBadge.className = "px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700";
+        }, 5000);
+
+      } else {
+        // ACCESS DENIED
+        lcdDisplay.innerText = "PIN ERRATO!";
+        lcdDisplay.className = "text-2xl font-bold tracking-widest text-red-400 min-h-[32px] flex items-center justify-center";
+        statusMsg.innerText = "Accesso negato o scaduto";
+
+        lockIndicator.className = "p-4 rounded-xl bg-red-950/30 border-2 border-red-500/50 flex items-center justify-between transition-all pulse-red";
+
+        showToast("ESP32: PIN Non Valido o Scaduto!", "error");
+
+        setTimeout(() => {
+          currentKeypadInput = "";
+          lcdDisplay.innerText = "INSERISCI PIN";
+          lcdDisplay.className = "text-2xl font-bold tracking-widest text-emerald-400 min-h-[32px] flex items-center justify-center";
+          statusMsg.innerText = "Premere # per confermare";
+          lockIndicator.className = "p-4 rounded-xl bg-slate-900 border-2 border-slate-800 flex items-center justify-between transition-all";
+        }, 2000);
+      }
+    }
+
+    // System Clock Simulation Loop
+    setInterval(() => {
+      const now = new Date();
+      const clockEl = document.getElementById('sim-clock');
+      if (clockEl) {
+        clockEl.innerText = now.toLocaleTimeString('it-IT');
+      }
+      // Periodically update active PIN status logic
+      renderJsonPreview();
+    }, 1000);
+
+    // Toast Notification System
+    function showToast(message, type = "info") {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+
+      let bg = "bg-slate-800 border-slate-700 text-slate-200";
+      let icon = "fa-info-circle text-blue-400";
+
+      if (type === "success") {
+        bg = "bg-slate-900 border-emerald-500/40 text-emerald-200";
+        icon = "fa-circle-check text-emerald-400";
+      } else if (type === "error") {
+        bg = "bg-slate-900 border-red-500/40 text-red-200";
+        icon = "fa-circle-xmark text-red-400";
+      } else if (type === "warning") {
+        bg = "bg-slate-900 border-amber-500/40 text-amber-200";
+        icon = "fa-triangle-exclamation text-amber-400";
+      }
+
+      toast.className = `p-3.5 rounded-xl border shadow-xl text-xs flex items-center gap-3 transition-all transform translate-y-2 opacity-0 pointer-events-auto max-w-md ${bg}`;
+      toast.innerHTML = `
+        <i class="fa-solid ${icon} text-base flex-shrink-0"></i>
+        <span>${message}</span>
+      `;
+
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Initialize on page load
+    window.onload = function() {
+      initDatabase();
+    };
+  </script>
+</body>
+</html>
